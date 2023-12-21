@@ -47,9 +47,9 @@ class RandomZoomOut(object):
                 shear=0.0,
             ),
         )
-    
+        
 class RandomCombineImage(object):
-    def __init__(self, p=0.3, translate1=(0, 0), translate2=(0.6, 0.35), scale1=(0.6, 0.8),  scale2=(0.4, 0.55)):
+    def __init__(self, p=0.3, translate1=(0, 0), translate2=(0.5, 0.3), scale1=(0.6, 0.8),  scale2=(0.4, 0.55)):
         self.p = p
         # self.translate1 = translate1
         # self.translate2 = translate2
@@ -58,12 +58,12 @@ class RandomCombineImage(object):
 
         self.affine_transfomer_main = RandomAffine(degrees=(-5, 5), translate=translate1, scale=scale1)
         self.affine_transfomer_sec = RandomAffine(degrees=(-5, 5), translate=translate2, scale=scale2)
-
+        
     def __call__(self, img, mask):
         if random.random() < self.p:
             size = mask.size()  
             
-            B, _, _, _ = img.size()
+            B, _, H, W = img.size()
             numbers = list(range(B))
             random.shuffle(numbers)
             
@@ -75,9 +75,9 @@ class RandomCombineImage(object):
                 self.affine_transfomer_main.translate,
                 self.affine_transfomer_main.scale,
                 self.affine_transfomer_main.shear,
-                img.size()
+                (H, W)
             )
-            
+
             img = tf.affine(img, *affine_params, fill=(-1.0, -1.0, -1.0))
             mask = tf.affine(mask, *affine_params, fill=0)
             
@@ -90,9 +90,9 @@ class RandomCombineImage(object):
                 self.affine_transfomer_sec.translate,
                 self.affine_transfomer_sec.scale,
                 self.affine_transfomer_sec.shear,
-                img.size()
+                (H, W)
             )
-            
+
             sec_img = tf.affine(sec_img, *affine_sec_params, fill=(-1.0, -1.0, -1.0))
             sec_mask = tf.affine(sec_mask, *affine_sec_params, fill=0)
             sec_mask = sec_mask[:, :, :].view(size[0], 1, size[1], size[2])
