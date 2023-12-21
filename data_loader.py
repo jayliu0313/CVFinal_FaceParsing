@@ -29,7 +29,8 @@ class CelebAMaskHQ(Dataset):
         for i in range(len([name for name in os.listdir(self.img_path) if osp.isfile(osp.join(self.img_path, name))])):
             img_path = osp.join(self.img_path, str(i)+'.jpg')
             label_path = osp.join(self.label_path, str(i)+'.png')
-
+            # print("hi:", img_path)
+            # print("mode:", self.mode)
             if self.mode:
                 self.train_dataset.append([img_path, label_path])
             else:
@@ -38,7 +39,7 @@ class CelebAMaskHQ(Dataset):
     def __getitem__(self, index):
         dataset = self.train_dataset if self.mode == True else self.test_dataset
         img_path, label_path = dataset[index]
-
+        # print(img_path)
         # Uniform image size
         image = Image.open(img_path).convert("RGB")
         label = Image.open(label_path).convert("L")
@@ -67,7 +68,7 @@ class CelebAMaskHQ(Dataset):
     def __len__(self):
         return self.num_images
 
-
+    
 class CustomDataLoader:
     def __init__(self, img_path, label_path, image_size, batch_size, num_workers, transform=None, mode=True):
         self.img_path = img_path

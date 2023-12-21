@@ -14,8 +14,7 @@ from utils import *
 import time
 import cv2
 from tqdm import tqdm
-from metrics import SegMetric
-from convert2CSV import convert_2_masks, mask2csv2
+
 
 # def make_dataset(dir):
 #     images = []
@@ -63,19 +62,19 @@ class Tester(object):
             osp.join(self.model_save_path, self.arch, "{}_G.pth".format(self.pretrained_model))))
         self.G.eval()
         # batch_num = int(self.test_size / self.batch_size)
-        metrics = SegMetric(n_classes=self.classes)
-        metrics.reset()
-        print("length:", len(self.data_loader))
+        # metrics = SegMetric(n_classes=self.classes)
+        # metrics.reset()
+        
         index = 0
-        for index, (images, labels) in enumerate(tqdm(self.data_loader, desc='Testing Data')):
+        for index, images in enumerate(tqdm(self.data_loader, desc='Testing Data')):
             #print('processing batch %d' % (index))
             #if (index + 1) % 100 == 0:
                 #print('%d batches processd' % (index + 1))
 
             images = images.cuda()
-            labels = labels.cuda()
-            size = labels.size()
-            h, w = size[1], size[2]
+            # labels = labels.cuda()
+            # size = labels.size()
+            h, w = 256, 256
 
             torch.cuda.synchronize()
             tic = time.perf_counter()
@@ -87,53 +86,18 @@ class Tester(object):
                     outputs = outputs[0][-1]
 
                 outputs = F.interpolate(outputs, (h, w), mode='bilinear', align_corners=True)
-                pred = outputs.data.max(1)[1].cpu().numpy()  # Matrix index
-                gt = labels.cpu().numpy()
-                metrics.update(gt, pred)
 
-                for b in range(pred.shape[0]):
-                    if index == 0 and b == 0:
-                        header = True
-                    else:
-                        header = False
-                    mask_dict = convert_2_masks(pred[b])
-                    mask2csv2(mask_dict, image_id = index * pred.shape[0] + b, header=header)
-                    
             torch.cuda.synchronize()
             time_meter.update(time.perf_counter() - tic)
 
             if self.test_colorful: # Whether color the test results to png files
-                # labels_predict_color = generate_label(outputs, self.imsize)
-                labels = labels[:, :, :].view(size[0], 1, size[1], size[2])
-                oneHot_size = (size[0], self.classes, size[1], size[2])
-                labels_real = torch.cuda.FloatTensor(torch.Size(oneHot_size)).zero_()
-                labels_real = labels_real.scatter_(1, labels.data.long().cuda(), 1.0)
+                labels_predict_color = generate_label(outputs, self.imsize)
                 labels_predict_plain = generate_label_plain(outputs, self.imsize)
-                compare_predict_color = generate_compare_results(images, labels_real, outputs, self.imsize)
+                compare_predict_color = generate_compare_wopred(images, outputs, self.imsize)
                 for k in range(self.batch_size):
-                    # save_image(labels_predict_color[k], osp.join(self.test_color_label_path, str(index * self.batch_size + k) +'.png'))
+                    save_image(labels_predict_color[k], osp.join(self.test_color_label_path, str(index * self.batch_size + k) +'.png'))
                     cv2.imwrite(osp.join(self.test_pred_label_path, str(index * self.batch_size + k) +'.png'), labels_predict_plain[k])
                     save_image(compare_predict_color[k], osp.join(self.test_color_label_path, str(index * self.batch_size + k) +'.png'))
-
-        print("----------------- Runtime Performance ------------------")
-        print('Total %d batches (%d images) tested.' % (index + 1, (index+1)*images.size(0)))
-        print("Inference Time per image: {:.4f}s".format(time_meter.average() / images.size(0)))
-        print("Inference FPS: {:.2f}".format(images.size(0) / time_meter.average()))
-
-        score = metrics.get_scores()[0]
-        class_iou = metrics.get_scores()[1]
-
-        print("----------------- Total Performance --------------------")
-        for k, v in score.items():
-            print(k, v)
-
-        print("----------------- Class IoU Performance ----------------")
-        facial_names = ['background', 'skin', 'nose', 'eyeglass', 'left_eye', 'right_eye', 'left_brow', 'right_brow',
-                        'left_ear', 'right_ear', 'mouth', 'upper_lip', 'lower_lip', 'hair', 'hat', 'earring', 'necklace',
-                        'neck', 'cloth']
-        for i in range(self.classes):
-            print(facial_names[i] + "\t: {}".format(str(class_iou[i])))
-        print("--------------------------------------------------------")
 
 
     def build_model(self):

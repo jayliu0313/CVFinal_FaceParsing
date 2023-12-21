@@ -13,7 +13,7 @@ def main(config):
     cudnn.enabled = True
     cudnn.benchmark = True
     cudnn.deterministic = False
-    torch.cuda.manual_seed(2020)
+    torch.cuda.manual_seed(999)
 
     if config.train:
         # Create directories if not exist
@@ -24,8 +24,9 @@ def main(config):
 
         # Transform for Data Augment
         transform = Compose([RandomHorizontallyFlip(p=.5), RandomSized(size=config.imsize), \
-            AdjustBrightness(bf=0.1), AdjustContrast(cf=0.1), AdjustHue(hue=0.1), \
-            AdjustSaturation(saturation=0.1)])
+            AdjustBrightness(bf=0.15), AdjustContrast(cf=0.15), AdjustHue(hue=0.15), \
+            AdjustSaturation(saturation=0.1), RandomRotate(degree=10), \
+            RandomZoomOut(scale_range=(0.8, 1.2)), GrayScale(p=0.1), RandomTranslate((0.2, 0.2))])
         
         data_loader = CustomDataLoader(config.img_path, config.label_path, config.imsize,
                                        config.batch_size, num_workers=config.num_workers, 
@@ -33,6 +34,7 @@ def main(config):
         val_loader = CustomDataLoader(config.val_img_path, config.val_label_path, config.imsize,
                                       config.batch_size, num_workers=config.num_workers, 
                                       transform=None, mode=bool(1 - config.train))
+        # print("nums of data:", len(data_loader.loader()))
         trainer = Trainer(data_loader.loader(), config, val_loader.loader())
         trainer.train()
     else:

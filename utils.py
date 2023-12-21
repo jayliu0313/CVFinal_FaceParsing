@@ -79,8 +79,7 @@ def generate_label(inputs, imsize, class_num=19):
     inputs = F.interpolate(input=inputs, size=(imsize, imsize),
                            mode='bilinear', align_corners=True)
     pred_batch = torch.argmax(inputs, dim=1)
-    label_batch = torch.Tensor(
-        [tensor2label(p.view(1, imsize, imsize), class_num) for p in pred_batch])
+    label_batch = torch.Tensor(np.array([tensor2label(p.view(1, imsize, imsize), class_num) for p in pred_batch]))
     return label_batch
 
 def generate_label_plain(inputs, imsize, class_num=19):
@@ -90,6 +89,16 @@ def generate_label_plain(inputs, imsize, class_num=19):
     label_batch = [p.cpu().numpy() for p in pred_batch]
     return label_batch
 
+def generate_compare_wopred(images, labels, imsize, class_num=19):
+    '''Tensor after optimized...'''
+    labels = F.interpolate(input=labels, size=(imsize, imsize),
+                           mode='bilinear', align_corners=True)
+    label_batch = torch.argmax(labels, dim=1)
+    labels_batch = torch.Tensor(
+        [tensor2label(p.view(1, imsize, imsize), class_num) for p in label_batch])
+    compare_batch = torch.cat((denorm(images).cpu().data, labels_batch), 3)
+    return compare_batch
+    
 def generate_compare_results(images, labels, preds, imsize, class_num=19):
     '''Tensor after optimized...'''
     labels = F.interpolate(input=labels, size=(imsize, imsize),

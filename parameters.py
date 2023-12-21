@@ -8,7 +8,7 @@ def str2bool(v):
 def get_parameters():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--imsize', type=int, default=512)
+    parser.add_argument('--imsize', type=int, default=256)
     parser.add_argument(
         '--arch', type=str, choices=['UNet', 'DFANet', 'DANet', 'DABNet', 'CE2P', 'FaceParseNet18',
                                      'FaceParseNet34', "FaceParseNet50", "FaceParseNet101", "EHANet18"], required=True)
@@ -45,13 +45,13 @@ def get_parameters():
     parser.add_argument('--val_label_path', type=str,
                         default='./Data_preprocessing/val_label')
     parser.add_argument('--test_image_path', type=str,
-                        default='./Data_preprocessing/test_img')
+                        default='./Data_preprocessing/unseen_test_img')
     parser.add_argument('--test_label_path', type=str,
-                        default='./Data_preprocessing/test_label')
+                        default='./Data_preprocessing/unseen_test_label')
     parser.add_argument('--test_pred_label_path', type=str,
                         default='./test_pred_results') # test pred results path
     parser.add_argument('--test_colorful', type=str2bool,
-                        default=False) # color test results switch
+                        default=True) # color test results switch
     parser.add_argument('--test_color_label_path', type=str,
                         default='./test_color_visualize') # colorful test pred results path
 

@@ -8,14 +8,14 @@ import torch.nn as nn
 from torchvision.utils import save_image
 import numpy as np
 import torch.nn.functional as F
-
+from tqdm import tqdm
 from verifier import Verifier
 from networks import get_model
 from utils import *
 from criterion import *
 from lr_scheduler import WarmupPolyLR
 from tensorboardX import SummaryWriter
-
+from augmentations import RandomCombineImage
 
 __BA__ = ["CE2P", "FaceParseNet18", "FaceParseNet34", "FaceParseNet50", "FaceParseNet"]
 
@@ -71,6 +71,24 @@ class Trainer(object):
             warmup_factor=1.0 / 3, warmup_iters=500,
             warmup_method='linear')
 
+        self.combine = RandomCombineImage(1.0)
+        
+    def visualize(self):
+        print("Visualize Input Augmentation Data")
+        for i_iter, batch in enumerate(tqdm(self.data_loader, desc='visualize')):
+            imgs, labels, edges = batch
+            # imgs[0] = self.combine(imgs[0], imgs[1])
+            imgs, labels = self.combine(imgs, labels)
+            size = labels.size()    
+            labels = labels[:, :, :].view(size[0], 1, size[1], size[2])
+            
+            oneHot_size = (size[0], self.classes, size[1], size[2])
+            labels_real = torch.cuda.FloatTensor(torch.Size(oneHot_size)).zero_()
+            labels_real = labels_real.scatter_(1, labels.data.long().cuda(), 1.0)
+            in_data_color = generate_compare_wopred(imgs, labels_real, self.imsize)
+            # compare_predict_color = generate_compare_results(imgs, labels_real, labels_predict, self.imsize)
+            save_image((in_data_color.data), osp.join(self.sample_path, '{}_input.png'.format(i_iter + 1)))
+            
     def train(self):
         if self.pretrained_model:
             start = self.pretrained_model + 1
@@ -80,17 +98,18 @@ class Trainer(object):
         criterion = CriterionAll()
         criterion.cuda()
         best_miou = 0
-
+        self.visualize()
         # Data iterator
         for epoch in range(start, self.epochs):
             self.G.train()
-
-            for i_iter, batch in enumerate(self.data_loader):
+            epoch_loss = 0
+            for i_iter, batch in enumerate(tqdm(self.data_loader, desc='Training')):
                 i_iter += len(self.data_loader) * epoch
                 # lr = adjust_learning_rate(self.g_lr,
                 #                           self.g_optimizer, i_iter, self.total_iters)
 
                 imgs, labels, edges = batch
+                imgs, labels = self.combine(imgs, labels)
                 size = labels.size()
                 imgs = imgs.cuda()
                 labels = labels.cuda()
@@ -104,12 +123,12 @@ class Trainer(object):
                     labels_predict = self.G(imgs)
                     c_loss = cross_entropy2d(
                         labels_predict, labels.long(), reduction='mean')
-
+                epoch_loss += c_loss.item()
                 self.reset_grad()
                 c_loss.backward()
                 # Note：这里为了简便没有对优化器进行参数断点记录！！！
                 self.g_optimizer.step()
-                self.lr_scheduler.step(epoch=None)
+                self.lr_scheduler.step(None)
 
                 # info on tensorboard
                 if (i_iter + 1) % self.tb_step == 0:
@@ -147,8 +166,9 @@ class Trainer(object):
                     # save_image((labels_sample.data), osp.join(self.sample_path, '{}_predict.png'.format(i_iter + 1)))
                     save_image((compare_predict_color.data), osp.join(self.sample_path, '{}_predict.png'.format(i_iter + 1)))
 
-                print('Train iter={} of {} completed, loss={}'.format(
-                    i_iter, self.total_iters, c_loss.data))
+                # print('Train iter={} of {} completed, loss={}'.format(i_iter, self.total_iters, c_loss.data))
+            epoch_loss /= len(self.data_loader)
+            print('Train epoch={} of {} completed, Epoch Loss={}'.format(epoch, self.epochs, epoch_loss))
             print('----- Train epoch={} of {} completed -----'.format(epoch+1, self.epochs))
 
             # miou = self.verifier.validation(self.G)

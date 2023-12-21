@@ -7,6 +7,104 @@ from PIL import Image, ImageOps
 import torch
 import torchvision.transforms.functional as tf
 
+from torchvision.transforms import RandomGrayscale, RandomAffine
+
+## My data augmentation
+class GrayScale(object):
+    def __init__(self, p):
+        self.gray_scale = RandomGrayscale(p)
+        
+    def __call__(self, img, mask):
+        assert img.size == mask.size
+        return self.gray_scale(img), mask
+
+class RandomZoomOut(object):
+    def __init__(self, scale_range):
+        self.scale_range = scale_range
+
+    def __call__(self, img, mask):
+        assert img.size == mask.size
+
+        # 生成隨機縮放比例
+        random_scale = random.uniform(self.scale_range[0], self.scale_range[1])
+
+        # 將隨機縮放應用於圖像和掩碼
+        return (
+            tf.affine(
+                img,
+                translate=(0, 0),
+                scale=random_scale,
+                angle=0,
+                fill=(0.0, 0.0, 0.0),
+                shear=0.0,
+            ),
+            tf.affine(
+                mask,
+                translate=(0, 0),
+                scale=random_scale,
+                angle=0,
+                fill=(0),
+                shear=0.0,
+            ),
+        )
+    
+class RandomCombineImage(object):
+    def __init__(self, p=0.3, translate1=(0, 0), translate2=(0.6, 0.35), scale1=(0.6, 0.8),  scale2=(0.4, 0.55)):
+        self.p = p
+        # self.translate1 = translate1
+        # self.translate2 = translate2
+        # self.scale1 = scale1
+        # self.scale2 = scale2
+
+        self.affine_transfomer_main = RandomAffine(degrees=(-5, 5), translate=translate1, scale=scale1)
+        self.affine_transfomer_sec = RandomAffine(degrees=(-5, 5), translate=translate2, scale=scale2)
+
+    def __call__(self, img, mask):
+        if random.random() < self.p:
+            size = mask.size()  
+            
+            B, _, _, _ = img.size()
+            numbers = list(range(B))
+            random.shuffle(numbers)
+            
+            sec_img = img[numbers]
+            sec_mask = mask[numbers]
+            
+            affine_params = self.affine_transfomer_main.get_params(
+                self.affine_transfomer_main.degrees,
+                self.affine_transfomer_main.translate,
+                self.affine_transfomer_main.scale,
+                self.affine_transfomer_main.shear,
+                img.size()
+            )
+            
+            img = tf.affine(img, *affine_params, fill=(-1.0, -1.0, -1.0))
+            mask = tf.affine(mask, *affine_params, fill=0)
+            
+            main_mask = mask[:, :, :].view(size[0], 1, size[1], size[2])
+            main_mask = (main_mask == 0).any(dim=1, keepdim=True).float()
+            main_mask = main_mask.repeat(1, 3, 1, 1)
+            
+            affine_sec_params = self.affine_transfomer_sec.get_params(
+                self.affine_transfomer_sec.degrees,
+                self.affine_transfomer_sec.translate,
+                self.affine_transfomer_sec.scale,
+                self.affine_transfomer_sec.shear,
+                img.size()
+            )
+            
+            sec_img = tf.affine(sec_img, *affine_sec_params, fill=(-1.0, -1.0, -1.0))
+            sec_mask = tf.affine(sec_mask, *affine_sec_params, fill=0)
+            sec_mask = sec_mask[:, :, :].view(size[0], 1, size[1], size[2])
+            sec_mask = (sec_mask == 0).any(dim=1, keepdim=True).float()
+            sec_mask = sec_mask.repeat(1, 3, 1, 1)
+            sec_img = main_mask * (1-sec_mask) * sec_img
+            i_mask = 1 - main_mask + sec_mask * main_mask
+            
+            img = img * i_mask + sec_img
+            
+        return img, mask
+# ----------------------------------------
 
 class Compose(object):
     def __init__(self, augmentations):
@@ -26,7 +124,6 @@ class Compose(object):
             img, mask = np.array(img), np.array(mask, dtype=np.uint8)
 
         return img, mask
-
 
 class RandomCrop(object):
     def __init__(self, size, padding=0):
@@ -53,7 +150,6 @@ class RandomCrop(object):
         y1 = random.randint(0, h - th)
         return (img.crop((x1, y1, x1 + tw, y1 + th)), mask.crop((x1, y1, x1 + tw, y1 + th)))
 
-
 class AdjustGamma(object):
     def __init__(self, gamma):
         self.gamma = gamma
@@ -61,7 +157,6 @@ class AdjustGamma(object):
     def __call__(self, img, mask):
         assert img.size == mask.size
         return tf.adjust_gamma(img, random.uniform(1, 1 + self.gamma)), mask
-
 
 class AdjustSaturation(object):
     def __init__(self, saturation):
@@ -75,7 +170,6 @@ class AdjustSaturation(object):
             mask,
         )
 
-
 class AdjustHue(object):
     def __init__(self, hue):
         self.hue = hue
@@ -83,7 +177,6 @@ class AdjustHue(object):
     def __call__(self, img, mask):
         assert img.size == mask.size
         return tf.adjust_hue(img, random.uniform(-self.hue, self.hue)), mask
-
 
 class AdjustBrightness(object):
     def __init__(self, bf):
@@ -93,7 +186,6 @@ class AdjustBrightness(object):
         assert img.size == mask.size
         return tf.adjust_brightness(img, random.uniform(1 - self.bf, 1 + self.bf)), mask
 
-
 class AdjustContrast(object):
     def __init__(self, cf):
         self.cf = cf
@@ -101,7 +193,6 @@ class AdjustContrast(object):
     def __call__(self, img, mask):
         assert img.size == mask.size
         return tf.adjust_contrast(img, random.uniform(1 - self.cf, 1 + self.cf)), mask
-
 
 class CenterCrop(object):
     def __init__(self, size):
@@ -117,7 +208,6 @@ class CenterCrop(object):
         x1 = int(round((w - tw) / 2.0))
         y1 = int(round((h - th) / 2.0))
         return (img.crop((x1, y1, x1 + tw, y1 + th)), mask.crop((x1, y1, x1 + tw, y1 + th)))
-
 
 class RandomHorizontallyFlip(object):
     def __init__(self, p):
@@ -143,7 +233,6 @@ class RandomHorizontallyFlip(object):
 
         return img, mask
 
-
 class RandomVerticallyFlip(object):
     def __init__(self, p):
         self.p = p
@@ -153,7 +242,6 @@ class RandomVerticallyFlip(object):
             return (img.transpose(Image.FLIP_TOP_BOTTOM), mask.transpose(Image.FLIP_TOP_BOTTOM))
         return img, mask
 
-
 class FreeScale(object):
     def __init__(self, size):
         self.size = size
@@ -161,7 +249,6 @@ class FreeScale(object):
     def __call__(self, img, mask):
         # assert img.size == mask.size
         return (img.resize((self.size, self.size), Image.BILINEAR), mask.resize((self.size, self.size), Image.NEAREST))
-
 
 class RandomTranslate(object):
     def __init__(self, offset):
@@ -208,16 +295,16 @@ class RandomTranslate(object):
                 scale=1.0,
                 angle=0.0,
                 shear=0.0,
-                fillcolor=250,
+                fill=(0),
             ),
         )
-
 
 class RandomRotate(object):
     def __init__(self, degree):
         self.degree = degree
 
     def __call__(self, img, mask):
+        assert img.size == mask.size
         rotate_degree = random.random() * 2 * self.degree - self.degree
         return (
             tf.affine(
@@ -225,8 +312,7 @@ class RandomRotate(object):
                 translate=(0, 0),
                 scale=1.0,
                 angle=rotate_degree,
-                resample=Image.BILINEAR,
-                fillcolor=(0, 0, 0),
+                fill=(0.0, 0.0, 0.0),
                 shear=0.0,
             ),
             tf.affine(
@@ -234,12 +320,10 @@ class RandomRotate(object):
                 translate=(0, 0),
                 scale=1.0,
                 angle=rotate_degree,
-                resample=Image.NEAREST,
-                fillcolor=250,
+                fill=(0),
                 shear=0.0,
             ),
         )
-
 
 class Scale(object):
     def __init__(self, size):
@@ -258,7 +342,6 @@ class Scale(object):
             oh = self.size
             ow = int(self.size * w / h)
             return (img.resize((ow, oh), Image.BILINEAR), mask.resize((ow, oh), Image.NEAREST))
-
 
 class RandomSizedCrop(object):
     def __init__(self, size):
@@ -295,7 +378,6 @@ class RandomSizedCrop(object):
         crop = CenterCrop(self.size)
         return crop(*scale(img, mask))
 
-
 class RandomSized(object):
     def __init__(self, size):
         self.size = size
@@ -312,7 +394,6 @@ class RandomSized(object):
                      mask.resize((w, h), Image.NEAREST))
 
         return self.crop(*self.scale(img, mask))
-
 
 def img_transform(img):
     # 0-255 to 0-1

@@ -1,3 +1,9 @@
+test_pred_results/
+test_color_visualize/
+runs/
+models/
+samples/
+Data_preprocessing/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
