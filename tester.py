@@ -45,7 +45,7 @@ class Tester(object):
         self.classes = config.classes
         self.pretrained_model = config.pretrained_model  # int type
 
-        self.model_save_path = config.model_save_path
+        self.model_path = config.model_path
         self.arch = config.arch
         # self.test_size = config.test_size
         self.batch_size = config.batch_size
@@ -57,20 +57,20 @@ class Tester(object):
     def test(self):
 
         time_meter = AverageMeter()
+        if os.path.exists("mask.csv"):
+            os.remove("mask.csv")
+            print("remove mask.csv file")
 
         # Model loading
-        self.G.load_state_dict(torch.load(
-            osp.join(self.model_save_path, self.arch, "{}_G.pth".format(self.pretrained_model))))
+        print("Load Model From:",self.model_path)
+        self.G.load_state_dict(torch.load(self.model_path))
+        
         self.G.eval()
-        # batch_num = int(self.test_size / self.batch_size)
         metrics = SegMetric(n_classes=self.classes)
         metrics.reset()
-        print("length:", len(self.data_loader))
+        
         index = 0
         for index, (images, labels) in enumerate(tqdm(self.data_loader, desc='Testing Data')):
-            #print('processing batch %d' % (index))
-            #if (index + 1) % 100 == 0:
-                #print('%d batches processd' % (index + 1))
 
             images = images.cuda()
             labels = labels.cuda()
@@ -134,6 +134,60 @@ class Tester(object):
         for i in range(self.classes):
             print(facial_names[i] + "\t: {}".format(str(class_iou[i])))
         print("--------------------------------------------------------")
+
+
+    def test_unseen(self):
+
+        time_meter = AverageMeter()
+        if os.path.exists("mask.csv"):
+            os.remove("mask.csv")
+            print("remove mask.csv file")
+
+        # Model loading
+        print("Load Model From:",self.model_path)
+        self.G.load_state_dict(torch.load(self.model_path))
+
+        self.G.eval()
+        metrics = SegMetric(n_classes=self.classes)
+        metrics.reset()
+        
+        index = 0
+        for index, images in enumerate(tqdm(self.data_loader, desc='Testing Data')):
+
+            images = images.cuda()
+            h, w = images.shape[2], images.shape[3]
+
+            torch.cuda.synchronize()
+            tic = time.perf_counter()
+
+            with torch.no_grad():
+                outputs = self.G(images)
+                # Whether or not multi branch?
+                if self.arch == 'CE2P' or 'FaceParseNet' in self.arch:
+                    outputs = outputs[0][-1]
+
+                outputs = F.interpolate(outputs, (h, w), mode='bilinear', align_corners=True)
+                pred = outputs.data.max(1)[1].cpu().numpy()  # Matrix index
+
+                for b in range(pred.shape[0]):
+                    if index == 0 and b == 0:
+                        header = True
+                    else:
+                        header = False
+                    mask_dict = convert_2_masks(pred[b], mode='unseen')
+                    mask2csv2(mask_dict, image_id = index * pred.shape[0] + b, header=header)
+                    
+            torch.cuda.synchronize()
+            time_meter.update(time.perf_counter() - tic)
+
+            if self.test_colorful: # Whether color the test results to png files
+                oneHot_size = (1, self.classes, 512, 512)
+                labels_real = torch.cuda.FloatTensor(torch.Size(oneHot_size)).zero_()
+                labels_predict_plain = generate_label_plain(outputs, self.imsize)
+                compare_predict_color = generate_compare_results(images, labels_real, outputs, self.imsize)
+                for k in range(self.batch_size):
+                    cv2.imwrite(osp.join(self.test_pred_label_path, str(index * self.batch_size + k) +'.png'), labels_predict_plain[k])
+                    save_image(compare_predict_color[k], osp.join(self.test_color_label_path, str(index * self.batch_size + k) +'.png'))
 
 
     def build_model(self):

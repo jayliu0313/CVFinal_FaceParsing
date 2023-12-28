@@ -71,7 +71,7 @@ class Trainer(object):
             warmup_factor=1.0 / 3, warmup_iters=500,
             warmup_method='linear')
 
-        self.combine = RandomCombineImage(1.0)
+        self.combine = RandomCombineImage(0.4)
         
     def visualize(self):
         print("Visualize Input Augmentation Data")
@@ -98,7 +98,7 @@ class Trainer(object):
         criterion = CriterionAll()
         criterion.cuda()
         best_miou = 0
-        self.visualize()
+        # self.visualize()
         # Data iterator
         for epoch in range(start, self.epochs):
             self.G.train()
@@ -194,9 +194,10 @@ class Trainer(object):
             lambda p: p.requires_grad, self.G.parameters()), self.g_lr, self.momentum, self.weight_decay)
 
     def load_pretrained_model(self):
-        self.G.load_state_dict(torch.load(osp.join(
-            self.model_save_path, '{}_G.pth'.format(self.pretrained_model))))
-        print('Loaded trained models (step: {})...!'.format(self.pretrained_model))
+        weight_path = "models/FaceParseNet50_augmentcopypaste_512/160_G.pth"
+        self.G.load_state_dict(torch.load(weight_path))
+        print("Load model from:", weight_path)
+        # print('Loaded trained models (step: {})...!'.format(self.pretrained_model))
 
     def reset_grad(self):
         self.g_optimizer.zero_grad()

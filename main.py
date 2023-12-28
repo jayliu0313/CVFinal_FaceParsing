@@ -24,9 +24,9 @@ def main(config):
 
         # Transform for Data Augment
         transform = Compose([RandomHorizontallyFlip(p=.5), RandomSized(size=config.imsize), \
-            AdjustBrightness(bf=0.15), AdjustContrast(cf=0.15), AdjustHue(hue=0.15), \
+            AdjustBrightness(bf=0.1), AdjustContrast(cf=0.1), AdjustHue(hue=0.1), \
             AdjustSaturation(saturation=0.1), RandomRotate(degree=10), \
-            RandomZoomOut(scale_range=(0.8, 1.2)), GrayScale(p=0.1), RandomTranslate((0.2, 0.2))])
+            RandomZoomOut(scale_range=(0.8, 1.2)), GrayScale(p=0.08), RandomTranslate((0.2, 0.2))])
         
         data_loader = CustomDataLoader(config.img_path, config.label_path, config.imsize,
                                        config.batch_size, num_workers=config.num_workers, 

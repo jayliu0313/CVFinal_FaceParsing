@@ -8,7 +8,7 @@ def str2bool(v):
 def get_parameters():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--imsize', type=int, default=256)
+    parser.add_argument('--imsize', type=int, default=512)
     parser.add_argument(
         '--arch', type=str, choices=['UNet', 'DFANet', 'DANet', 'DABNet', 'CE2P', 'FaceParseNet18',
                                      'FaceParseNet34', "FaceParseNet50", "FaceParseNet101", "EHANet18"], required=True)
@@ -16,9 +16,9 @@ def get_parameters():
     # Training setting
     parser.add_argument('--epochs', type=int, default=200,
                         help='how many times to update the generator')
-    parser.add_argument('--pretrained_model', type=int, default=0)
-    parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--pretrained_model', type=int, default=160)
+    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--g_lr', type=float, default=0.001)
     parser.add_argument('--weight_decay', type=float, default=1e-5)
     parser.add_argument('--momentum', type=float, default=0.9)
@@ -45,9 +45,9 @@ def get_parameters():
     parser.add_argument('--val_label_path', type=str,
                         default='./Data_preprocessing/val_label')
     parser.add_argument('--test_image_path', type=str,
-                        default='./Data_preprocessing/unseen_test_img')
+                        default='./Data_preprocessing/test_img')
     parser.add_argument('--test_label_path', type=str,
-                        default='./Data_preprocessing/unseen_test_label')
+                        default='./Data_preprocessing/test_label')
     parser.add_argument('--test_pred_label_path', type=str,
                         default='./test_pred_results') # test pred results path
     parser.add_argument('--test_colorful', type=str2bool,

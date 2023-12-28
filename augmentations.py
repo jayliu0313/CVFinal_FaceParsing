@@ -49,7 +49,7 @@ class RandomZoomOut(object):
         )
         
 class RandomCombineImage(object):
-    def __init__(self, p=0.3, translate1=(0, 0), translate2=(0.5, 0.3), scale1=(0.6, 0.8),  scale2=(0.4, 0.55)):
+    def __init__(self, p=0.4, translate1=(0, 0), translate2=(0.5, 0.3), scale1=(0.6, 0.8),  scale2=(0.4, 0.55)):
         self.p = p
         # self.translate1 = translate1
         # self.translate2 = translate2
@@ -104,6 +104,23 @@ class RandomCombineImage(object):
             img = img * i_mask + sec_img
             
         return img, mask
+
+class CenterCrop(object):
+    def __init__(self, size):
+        self.size = size
+        
+    def __call__(self, img):
+        B, C, H, W = img.size()
+        h, w = self.size
+        del_h = (H - h) // 2
+        del_w = (W - w) // 2
+
+        img[:, :, 0:del_h, :] = -1.0
+        img[:, :, del_h+H:H, :] = -1.0
+        img[:, :, :, 0:del_w] = -1.0
+        img[:, :, :, del_w+W:W] = -1.0
+
+        return img
 # ----------------------------------------
 
 class Compose(object):
@@ -394,6 +411,7 @@ class RandomSized(object):
                      mask.resize((w, h), Image.NEAREST))
 
         return self.crop(*self.scale(img, mask))
+
 
 def img_transform(img):
     # 0-255 to 0-1

@@ -283,7 +283,7 @@ def FaceParseNet101(num_classes=19, pretrained=True):
 
 
 if __name__ == '__main__':
-    from torchstat import stat
-
     net = FaceParseNet50(pretrained=True)
-    stat(net, (3, 256, 256))
+    data = torch.rand((1, 3, 256, 256))
+    out = net(data)
+    print(len(out))
